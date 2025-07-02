@@ -30,3 +30,7 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+#tranco lists
+top-1m.csv
+tranco_4NKVX-1m.csv.zip
