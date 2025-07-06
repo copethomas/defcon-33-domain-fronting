@@ -20,22 +20,16 @@ cdn_name,cdn_asn
 "Fastly",AS54113
 "Cedexis",AS53847
 "netdna-cdn",AS54104,AS33438
-"G-Core Labs"
-"GlobalConnect"
-"Google Cloud CDN"
-"HighwayCDN"
-"Huawei Cloud"
-"Imperva CDN"
-"adobe"
-"cdnvideo"
-"gotocdn"
-"InternapCDN"
-"incapsula"
-"inxy"
-"Jet-Stream Cloud"
-"KeyCDN"
-"Limelight"
-"Lumen"
+"G-Core Labs",AS199524
+"GlobalConnect",AS64131,AS12552,AS31027,AS34932,AS42525,AS2116,AS16150,AS28717,AS41572,AS8896
+"Google Cloud CDN",AS15169, AS36040, AS43515, AS36561, AS19527, AS139070, AS396982
+"Huawei Cloud",AS136907,AS55990
+"Imperva CDN",AS19551
+"adobe",AS15224,AS1313
+"cdnvideo",AS57363
+"InternapCDN",AS29791
+"KeyCDN",AS44239
+"Lumen",AS3549,AS200,AS202818,AS209,AS3356,AS3561
 "MainStreaming"
 "Medianova"
 "Microsoft Azure CDN"
