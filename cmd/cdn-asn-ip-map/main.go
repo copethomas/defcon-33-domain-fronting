@@ -180,6 +180,11 @@ func main() {
 		log.Fatal("Both input and output file paths are required")
 	}
 
+	// Check if the output file already exists
+	if _, err := os.Stat(*outputFile); err == nil {
+		log.Fatalf("Output file %s already exists. Please specify a different output file to prevent overwriting, or delete existing file", *outputFile)
+	}
+
 	// Check for ip2asn-v4.tsv and download if needed
 	if err := checkAndDownloadTSV(); err != nil {
 		log.Fatalf("Error checking/downloading ip2asn-v4.tsv: %v", err)
