@@ -1,31 +1,25 @@
 cdn_name,cdn_asn
-"Akamai"
-"Alibaba Cloud"
-"Amazon CloudFront"
-"AICDN"
-"Aryaka"
-"Baidu"
-"BaishanCloud"
-"BelugaCDN"
-"BlazingCDN"
-"Bunny.net"
-"BytePlus"
-"CacheFly"
-"CDN77"
-"CDNsun"
-"CDNetworks"
-"ChinaCache"
-"ChinaNetCenter"
-"Cloudflare"
-"Cloudinary"
-"Comcast Technology Solutions"
-"Edgio"
-"EdgeNext"
-"Fastly"
-"Cedexis"
-"citrix"
-"netlifyglobalcdn"
-"netdna-cdn"
+"Akamai",AS12222,AS16625,AS17204,AS18717,AS20940,AS21342,AS24319,AS26008,AS31108,AS31984,AS32787,AS33905,AS34164,AS35204,AS35994,AS36183,AS49846,AS63949,AS213120,AS393234,AS393560
+"Alibaba Cloud",AS24429,AS34947,AS37963,AS45102,AS134963,AS211914
+"Amazon CloudFront",AS16509
+"Aryaka",AS11179
+"Baidu",AS38365,AS38627,AS55967
+"BaishanCloud",AS139057
+"BelugaCDN",AS23393
+"BlazingCDN",AS39572
+"Bunny.net",AS200325
+"BytePlus",AS150436
+"CacheFly",AS30081
+"CDN77",AS211612,AS60068
+"CDNetworks",AS204720
+"ChinaCache", AS63541
+"Cloudflare", AS13335,AS209242
+"Comcast Technology Solutions",AS7922
+"Edgio",AS22822
+"EdgeNext",AS139057,AS149981
+"Fastly",AS54113
+"Cedexis",AS53847
+"netdna-cdn",AS54104,AS33438
 "G-Core Labs"
 "GlobalConnect"
 "Google Cloud CDN"
