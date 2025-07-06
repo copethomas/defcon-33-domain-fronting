@@ -30,28 +30,17 @@ cdn_name,cdn_asn
 "InternapCDN",AS29791
 "KeyCDN",AS44239
 "Lumen",AS3549,AS200,AS202818,AS209,AS3356,AS3561
-"MainStreaming"
-"Medianova"
-"Microsoft Azure CDN"
-"Netskrt"
-"Ngenix"
-"Ora Streaming"
-"Qwilt"
-"Reblaze"
-"SitelockCDN"
-"StackPath"
-"SwiftServe"
-"Sucuri"
-"Tata Communications"
-"Tencent"
-"Teridion"
-"UCDN"
-"Velocix"
-"Varnish Software"
-"Vecima"
-"Wangsu"
-"WixDNS"
-"Yottaa"
-"jsDelivr"
-"BootstrapCDN"
-"cdnjs"
+"MainStreaming",AS51185
+"Medianova",AS21245
+"Microsoft Azure CDN",AS8075
+"Netskrt",AS46265,AS400196,AS22359,AS53471
+"Ngenix",AS34879
+"Qwilt",AS20253
+"StackPath",AS54104
+"GoDaddy",AS26496,AS44273,AS34440
+"Tata Communications",AS4755
+"Tencent",AS132591,AS45090,AS132203
+"Velocix",AS9540
+"Wangsu",AS54994
+"wixdns",AS58182
+"Yottaa",AS393259
