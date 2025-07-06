@@ -169,7 +169,7 @@ func getIPRangesForASN(asn string) ([]IPRange, error) {
 func main() {
 	// Define command-line flags
 	inputFile := flag.String("input", "cdn_asn.csv", "Path to the input CSV file (required)")
-	outputFile := flag.String("output", "cdn_asn_to_ip_map.csv", "Path to the output JSON file (required)")
+	outputFile := flag.String("output", "cdn_asn_to_ip_map.json", "Path to the output JSON file (required)")
 
 	// Parse flags
 	flag.Parse()
