@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"compress/gzip"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -11,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 )
 
 // IPRange represents an IP range with start and end addresses
@@ -23,65 +24,143 @@ type IPRange struct {
 // CDNIPMap maps CDN names to their IP ranges
 type CDNIPMap map[string][]IPRange
 
-// ASNResponse represents the response from ipinfo.io API
-type ASNResponse struct {
-	Prefixes []struct {
-		Netblock string `json:"netblock"`
-	} `json:"prefixes"`
+// ASNEntry represents an entry in the ip2asn-v4.tsv file
+type ASNEntry struct {
+	RangeStart    string
+	RangeEnd      string
+	ASNumber      string
+	CountryCode   string
+	ASDescription string
 }
 
-// getIPRangesForASN fetches IP ranges for a given ASN using ipinfo.io API
-func getIPRangesForASN(asn string) ([]IPRange, error) {
-	// Remove "AS" prefix if present
-	asnNumber := strings.TrimPrefix(asn, "AS")
+// Global variable to store ASN entries loaded from the TSV file
+var asnEntries []ASNEntry
 
-	// Construct the API URL
-	url := fmt.Sprintf("https://ipinfo.io/AS%s/json", asnNumber)
-
-	// Create a client with timeout
-	client := &http.Client{
-		Timeout: 10 * time.Second,
+// checkAndDownloadTSV checks if ip2asn-v4.tsv exists, and if not, downloads and extracts it
+func checkAndDownloadTSV() error {
+	// Check if the file already exists
+	if _, err := os.Stat("ip2asn-v4.tsv"); err == nil {
+		fmt.Println("ip2asn-v4.tsv already exists, using existing file")
+		return nil
 	}
 
-	// Add a delay to avoid rate limiting
-	time.Sleep(1 * time.Second)
+	fmt.Println("ip2asn-v4.tsv not found, downloading from iptoasn.com...")
 
-	// Make the request
-	resp, err := client.Get(url)
+	// Download the gzipped file
+	resp, err := http.Get("https://iptoasn.com/data/ip2asn-v4.tsv.gz")
 	if err != nil {
-		return nil, fmt.Errorf("error making request to ipinfo.io: %v", err)
+		return fmt.Errorf("error downloading ip2asn-v4.tsv.gz: %v", err)
 	}
 	defer resp.Body.Close()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received non-OK response from ipinfo.io: %s", resp.Status)
+		return fmt.Errorf("received non-OK response from iptoasn.com: %s", resp.Status)
 	}
 
-	// Read the response body
-	body, err := ioutil.ReadAll(resp.Body)
+	// Create a temporary file to store the gzipped content
+	gzFile, err := os.Create("ip2asn-v4.tsv.gz")
 	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %v", err)
+		return fmt.Errorf("error creating temporary file: %v", err)
+	}
+	defer gzFile.Close()
+
+	// Copy the response body to the temporary file
+	_, err = io.Copy(gzFile, resp.Body)
+	if err != nil {
+		return fmt.Errorf("error saving downloaded file: %v", err)
 	}
 
-	// Parse the response
-	var asnResp ASNResponse
-	if err := json.Unmarshal(body, &asnResp); err != nil {
-		return nil, fmt.Errorf("error parsing JSON response: %v", err)
+	// Close the file to ensure all data is written
+	gzFile.Close()
+
+	// Open the gzipped file for reading
+	gzFile, err = os.Open("ip2asn-v4.tsv.gz")
+	if err != nil {
+		return fmt.Errorf("error opening gzipped file: %v", err)
+	}
+	defer gzFile.Close()
+
+	// Create a gzip reader
+	gzReader, err := gzip.NewReader(gzFile)
+	if err != nil {
+		return fmt.Errorf("error creating gzip reader: %v", err)
+	}
+	defer gzReader.Close()
+
+	// Create the output file
+	outFile, err := os.Create("ip2asn-v4.tsv")
+	if err != nil {
+		return fmt.Errorf("error creating output file: %v", err)
+	}
+	defer outFile.Close()
+
+	// Copy the uncompressed content to the output file
+	_, err = io.Copy(outFile, gzReader)
+	if err != nil {
+		return fmt.Errorf("error extracting gzipped file: %v", err)
 	}
 
-	// Extract IP ranges
+	fmt.Println("Successfully downloaded and extracted ip2asn-v4.tsv")
+	return nil
+}
+
+// loadASNEntries loads ASN entries from the TSV file
+func loadASNEntries() error {
+	// Open the TSV file
+	file, err := os.Open("ip2asn-v4.tsv")
+	if err != nil {
+		return fmt.Errorf("error opening ip2asn-v4.tsv: %v", err)
+	}
+	defer file.Close()
+
+	// Create a scanner to read the file line by line
+	scanner := bufio.NewScanner(file)
+
+	// Read each line and parse it
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Split(line, "\t")
+
+		// Ensure the line has the expected number of fields
+		if len(fields) >= 5 {
+			entry := ASNEntry{
+				RangeStart:    fields[0],
+				RangeEnd:      fields[1],
+				ASNumber:      fields[2],
+				CountryCode:   fields[3],
+				ASDescription: fields[4],
+			}
+			asnEntries = append(asnEntries, entry)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading ip2asn-v4.tsv: %v", err)
+	}
+
+	fmt.Printf("Loaded %d ASN entries from ip2asn-v4.tsv\n", len(asnEntries))
+	return nil
+}
+
+// getIPRangesForASN fetches IP ranges for a given ASN using the local TSV file
+func getIPRangesForASN(asn string) ([]IPRange, error) {
+	// Remove "AS" prefix if present
+	asnNumber := strings.TrimPrefix(asn, "AS")
+
+	// Find all entries matching the ASN
 	var ipRanges []IPRange
-	for _, prefix := range asnResp.Prefixes {
-		// For simplicity, we're treating the CIDR notation as a range
-		// In a real implementation, you might want to convert CIDR to actual start/end IPs
-		parts := strings.Split(prefix.Netblock, "/")
-		if len(parts) == 2 {
+	for _, entry := range asnEntries {
+		if entry.ASNumber == asnNumber {
 			ipRanges = append(ipRanges, IPRange{
-				Start: parts[0],
-				End:   parts[0], // This is a simplification; in reality, you'd calculate the end IP
+				Start: entry.RangeStart,
+				End:   entry.RangeEnd,
 			})
 		}
+	}
+
+	if len(ipRanges) == 0 {
+		return nil, fmt.Errorf("no IP ranges found for ASN %s", asn)
 	}
 
 	return ipRanges, nil
@@ -89,8 +168,8 @@ func getIPRangesForASN(asn string) ([]IPRange, error) {
 
 func main() {
 	// Define command-line flags
-	inputFile := flag.String("input", "", "Path to the input CSV file (required)")
-	outputFile := flag.String("output", "", "Path to the output JSON file (required)")
+	inputFile := flag.String("input", "cdn_asn.csv", "Path to the input CSV file (required)")
+	outputFile := flag.String("output", "cdn_asn_to_ip_map.csv", "Path to the output JSON file (required)")
 
 	// Parse flags
 	flag.Parse()
@@ -99,6 +178,16 @@ func main() {
 	if *inputFile == "" || *outputFile == "" {
 		flag.Usage()
 		log.Fatal("Both input and output file paths are required")
+	}
+
+	// Check for ip2asn-v4.tsv and download if needed
+	if err := checkAndDownloadTSV(); err != nil {
+		log.Fatalf("Error checking/downloading ip2asn-v4.tsv: %v", err)
+	}
+
+	// Load ASN entries from the TSV file
+	if err := loadASNEntries(); err != nil {
+		log.Fatalf("Error loading ASN entries: %v", err)
 	}
 
 	// Open the CSV file
