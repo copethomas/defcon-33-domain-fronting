@@ -1,20 +1,23 @@
 # defcon-2025-domain-fronting
 Defcon 2025 Malware Village Domain Fronting Talk
 
+## 1. CDN List (Manual Process)
 
-## CDN List
+To rank and test a collection of CDNs we need a list of CDNs! 
 
-Collected through various online resources, including
+This was gathered through some Googling and manual research
+and then [PeeringDB](https://www.peeringdb.com/net/906) and [HackerTarget](https://hackertarget.com/as-ip-lookup/) were used
+to associate each CDN with their ASN number. 
 
-https://hackertarget.com/as-ip-lookup/
+We store this list in `cdn_asn.csv`
 
-https://www.peeringdb.com/net/906
+Data Collection Date: 2025-07-06
 
-look up the company name and get all the ASN numbers
+## 2. ASN to IP Map
 
-download and convert to csv with ` csvkit`
+We then use the `cdn-asn-ip-map` Go program to covert all the CDN ASN numbers to a collection of IP addresses
+which we dump as JSON to be used in a lookup table.
 
-`in2csv -K 1 ~/Downloads/Autonomous\ System\ Lookup\ \(AS\ \ ASN\ \ IP\)\ \ HackerTarget.com.xlsx |grep "^AS"
-`
-
-then use a script to get all the IP address
+```shell
+go run cmd/cdn-asn-ip-map/main.go
+```
