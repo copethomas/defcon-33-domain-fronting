@@ -34,7 +34,9 @@ go.work.sum
 #tranco lists
 top-1m.csv
 tranco_4NKVX-1m.csv.zip
+/test-domains.csv
 
 #ip2asn downloads
 /ip2asn-v4.tsv
 /ip2asn-v4.tsv.gz
+

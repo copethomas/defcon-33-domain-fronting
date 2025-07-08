@@ -22,10 +22,54 @@ Data Collection Date: 2025-07-06
 ## 2. ASN to IP Map
 
 We then use the `cdn-asn-ip-map` Go program to covert all the CDN ASN numbers to a collection of IP addresses
-which we dump as JSON to be used in a lookup table.
+which we dump as JSON to be used in a lookup table. 
+This uses the free https://iptoasn.com tab separated database to perform the lookup.
 
 ```shell
 go run cmd/cdn-asn-ip-map/main.go
+```
+
+## 3. Prepare domain list
+
+We now need to visit / scape a large number of sites to find which CDNs are used to host them. In order todo that we need a large list
+of websites to visit.
+- https://tranco-list.eu/ - For the top 1 million domains
+
+## 4. Scrape domains and analyze CDN usage
+
+The `scape` tool processes a list of domains, uses Common Crawl to fetch information about each domain's resources, and generates a JSON report with CDN information.
+
+```shell
+go run cmd/scape/main.go -input top-1m.csv -cdn-map cdn_asn_to_ip_map.json -output resources.json
+```
+
+### Command-line options:
+
+- `-input`: Path to the input domain list file (default: "top-1m.csv")
+- `-cdn-map`: Path to the CDN to IP mapping file (default: "cdn_asn_to_ip_map.json")
+- `-output`: Path to the output JSON file (default: "resources.json")
+
+### Output format:
+
+The tool generates a JSON file containing an array of resource information objects:
+
+```json
+[
+  {
+    "cdn": "cloudfront",
+    "original_domain": "example.com",
+    "content_type": "text/javascript;charset=utf-8",
+    "resource_url": "https://example.com/script.js",
+    "server_ip": "192.0.2.1"
+  },
+  {
+    "cdn": "akamai",
+    "original_domain": "another-example.com",
+    "content_type": "text/css",
+    "resource_url": "https://another-example.com/styles.css",
+    "server_ip": "192.0.2.2"
+  }
+]
 ```
 
 ### Notes
