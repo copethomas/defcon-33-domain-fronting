@@ -3,17 +3,22 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
+	"context"
+	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
+	"math/rand"
 	"net"
-	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // IPRange represents an IP range with start and end addresses
@@ -25,61 +30,78 @@ type IPRange struct {
 // CDNIPMap maps CDN names to their IP ranges
 type CDNIPMap map[string][]IPRange
 
-// ResourceInfo represents information about a resource loaded from a website
-type ResourceInfo struct {
-	CDN            string `json:"cdn"`
-	OriginalDomain string `json:"original_domain"`
-	ContentType    string `json:"content_type"`
-	ResourceURL    string `json:"resource_url"`
-	ServerIP       string `json:"server_ip"`
-}
-
-type CommonCrawlCDX struct {
-	Urlkey       string `json:"urlkey"`
-	Timestamp    string `json:"timestamp"`
-	URL          string `json:"url"`
-	Mime         string `json:"mime"`
-	MimeDetected string `json:"mime-detected"`
-	Status       string `json:"status"`
-	Digest       string `json:"digest"`
-	Length       string `json:"length"`
-	Offset       string `json:"offset"`
-	Filename     string `json:"filename"`
-	Redirect     string `json:"redirect"`
-}
-
-// WAT represents the structure of the WAT file response
-type WAT struct {
-	Envelope struct {
-		WARC struct {
-			Header struct {
-				ContentType string `json:"Content-Type"`
-			} `json:"header"`
-		} `json:"WARC-Header-Metadata"`
-		Payload struct {
-			RequestHeaders struct {
-				Headers map[string]string `json:"headers"`
-			} `json:"request-headers"`
-			ResponseHeaders struct {
-				Headers map[string]string `json:"headers"`
-			} `json:"response-headers"`
-			ResponseBody struct {
-				Links []struct {
-					URL string `json:"url"`
-				} `json:"links"`
-			} `json:"response-body"`
-		} `json:"payload-metadata"`
-	} `json:"Envelope"`
+type CSVDump struct {
+	CDN       string `csv:"cdn"`
+	DomainSLD string `csv:"domain_sld"`
+	IP        string `csv:"ip_addr"`
 }
 
 // Global variables
 var cdnIPMap CDNIPMap
-var httpClient = &http.Client{
-	Timeout: 30 * time.Second,
+var threadCount = 10 // Number of concurrent goroutines to use for processing domains
+
+var noCDN = errors.New("no cdn found for this IP")
+
+// List of public DNS servers
+var publicDNSServers = []string{
+	"8.8.8.8:53",        // Google DNS
+	"1.1.1.1:53",        // Cloudflare
+	"9.9.9.9:53",        // Quad9
+	"208.67.222.222:53", // OpenDNS
+	"64.6.64.6:53",      // Verisign
+	"84.200.69.80:53",   // DNS.WATCH
+	"8.26.56.26:53",     // Comodo Secure DNS
 }
 
-// Store the latest collection info to avoid fetching it multiple times
-var latestCollectionInfo *CollectionInfo
+// init initializes the random number generator
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+// lookupIPWithRetry performs DNS lookup with retry using different public DNS servers
+func lookupIPWithRetry(domain string) ([]net.IP, error) {
+	// Create a copy of the DNS servers list to shuffle
+	servers := make([]string, len(publicDNSServers))
+	copy(servers, publicDNSServers)
+
+	// Shuffle the servers to randomize the order
+	rand.Shuffle(len(servers), func(i, j int) {
+		servers[i], servers[j] = servers[j], servers[i]
+	})
+
+	var lastErr error
+	// Try each DNS server until one succeeds
+	for _, server := range servers {
+		log.Debug().Msgf("Attempting DNS lookup for %s using server %s", domain, server)
+
+		r := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{
+					Timeout: time.Second * 5,
+				}
+				return d.DialContext(ctx, "udp", server)
+			},
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+
+		ips, err := r.LookupIP(ctx, "ip", domain)
+		if err != nil {
+			lastErr = err
+			log.Debug().Msgf("DNS lookup failed with server %s: %v", server, err)
+			continue
+		}
+
+		if len(ips) > 0 {
+			log.Debug().Msgf("Successfully resolved %s using server %s", domain, server)
+			return ips, nil
+		}
+	}
+
+	return nil, fmt.Errorf("all DNS servers failed to resolve %s: %v", domain, lastErr)
+}
 
 // isIPInRange checks if an IP address is within a given range
 func isIPInRange(ip, start, end string) bool {
@@ -95,311 +117,15 @@ func isIPInRange(ip, start, end string) bool {
 }
 
 // getCDNForIP determines which CDN an IP address belongs to
-func getCDNForIP(ip string) string {
+func getCDNForIP(ip string) (string, error) {
 	for cdn, ranges := range cdnIPMap {
 		for _, ipRange := range ranges {
 			if isIPInRange(ip, ipRange.Start, ipRange.End) {
-				return cdn
+				return cdn, nil
 			}
 		}
 	}
-	return "unknown"
-}
-
-// CollectionInfo represents the structure of the Common Crawl collection info API response
-type CollectionInfo struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	TimestampStr  string `json:"timegate"`
-	CDXServer     string `json:"cdx-api"`
-	IndexURL      string `json:"cdx-server"`
-	CollectionURL string `json:"collection"`
-}
-
-// getLatestCommonCrawlIndex fetches the latest Common Crawl index for a domain
-func getLatestCommonCrawlIndex(domain string) (*CommonCrawlCDX, error) {
-	// Check if we already have the latest collection info
-	if latestCollectionInfo == nil {
-		// First, get the list of available indexes from the Common Crawl API
-		collInfoURL := "https://index.commoncrawl.org/collinfo.json"
-
-		resp, err := httpClient.Get(collInfoURL)
-		if err != nil {
-			panic(err)
-			return nil, fmt.Errorf("error fetching Common Crawl collection info: %v", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			panic(resp.StatusCode)
-			return nil, fmt.Errorf("received non-OK response from Common Crawl collection info: %s", resp.Status)
-		}
-
-		var collections []CollectionInfo
-		decoder := json.NewDecoder(resp.Body)
-		if err := decoder.Decode(&collections); err != nil {
-			return nil, fmt.Errorf("error decoding Common Crawl collection info: %v", err)
-		}
-
-		if len(collections) == 0 {
-			return nil, fmt.Errorf("no Common Crawl collections found")
-		}
-
-		// Store the first (most recent) collection in the global variable
-		latestCollectionInfo = &collections[0]
-	}
-
-	// Now query for the domain using the latest collection's index URL
-	domainURL := fmt.Sprintf("%s?url=%s&output=json", latestCollectionInfo.CDXServer, domain)
-
-	resp, err := httpClient.Get(domainURL)
-	if err != nil {
-		return nil, fmt.Errorf("error fetching Common Crawl index: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received non-OK response from Common Crawl: %s", resp.Status)
-	}
-
-	var indexes []CommonCrawlCDX
-	scanner := bufio.NewScanner(resp.Body)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue // Skip empty lines
-		}
-
-		var index CommonCrawlCDX
-		if err := json.Unmarshal([]byte(line), &index); err != nil {
-			return nil, fmt.Errorf("error decoding Common Crawl index line: %v", err)
-		}
-		indexes = append(indexes, index)
-	}
-
-	if len(indexes) == 0 {
-		return nil, fmt.Errorf("no Common Crawl index found for domain: %s", domain)
-	}
-
-	if &indexes[0].Redirect != nil {
-		return nil, fmt.Errorf("redirect detected, need to fix, skipping : %s", indexes[0].Redirect)
-	}
-
-	// Return the first (most recent) index
-	return &indexes[0], nil
-}
-
-// getContentTypeFromHeaders extracts the Content-Type from HTTP headers
-func getContentTypeFromHeaders(headers map[string]string) string {
-	// Check for Content-Type header (case-insensitive)
-	for key, value := range headers {
-		if strings.ToLower(key) == "content-type" {
-			// Return just the media type part if there are parameters
-			if semicolon := strings.Index(value, ";"); semicolon != -1 {
-				return value[:semicolon]
-			}
-			return value
-		}
-	}
-
-	// If no Content-Type header found
-	return ""
-}
-
-// getContentTypeFromWAT extracts content type from WAT metadata for a specific URL
-func getContentTypeFromWAT(wat *WAT, url string) string {
-	// First check if this is the main page
-	mainPageContentType := ""
-	for key, value := range wat.Envelope.Payload.ResponseHeaders.Headers {
-		if strings.ToLower(key) == "content-type" {
-			if semicolon := strings.Index(value, ";"); semicolon != -1 {
-				mainPageContentType = value[:semicolon]
-			} else {
-				mainPageContentType = value
-			}
-			break
-		}
-	}
-
-	// If this is the main page content, return its content type
-	if mainPageContentType != "" && strings.HasSuffix(url, "/") {
-		return mainPageContentType
-	}
-
-	// For other resources, we need to make a HEAD request to get the content type
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-
-	req, err := http.NewRequest("HEAD", url, nil)
-	if err != nil {
-		return guessContentTypeFromURL(url)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return guessContentTypeFromURL(url)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return guessContentTypeFromURL(url)
-	}
-
-	contentType := resp.Header.Get("Content-Type")
-	if contentType == "" {
-		return guessContentTypeFromURL(url)
-	}
-
-	// Return just the media type part if there are parameters
-	if semicolon := strings.Index(contentType, ";"); semicolon != -1 {
-		return contentType[:semicolon]
-	}
-
-	return contentType
-}
-
-// getResourcesFromWAT fetches and processes the WAT file to extract resources
-func getResourcesFromWAT(index *CommonCrawlCDX, domain string) ([]ResourceInfo, error) {
-	// Construct the URL to the WAT file
-	watURL := fmt.Sprintf("https://data.commoncrawl.org/%s", index.Filename)
-
-	resp, err := httpClient.Get(watURL)
-	if err != nil {
-		return nil, fmt.Errorf("error fetching WAT file: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received non-OK response from WAT file: %s", resp.Status)
-	}
-
-	// Create a gzip reader to decompress the WAT file
-	gzipReader, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error creating gzip reader for WAT file: %v", err)
-	}
-	defer gzipReader.Close()
-
-	var resources []ResourceInfo
-	scanner := bufio.NewScanner(gzipReader)
-
-	// Increase the buffer size to handle large lines
-	const maxScanTokenSize = 1024 * 1024 // 1MB
-	buf := make([]byte, maxScanTokenSize)
-	scanner.Buffer(buf, maxScanTokenSize)
-
-	// WAT files contain multiple JSON records, one per line
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue // Skip empty lines
-		}
-
-		// Parse the JSON record
-		var wat WAT
-		if err := json.Unmarshal([]byte(line), &wat); err != nil {
-			// Skip records that can't be parsed
-			continue
-		}
-
-		// Process each link in the WAT record
-		for _, link := range wat.Envelope.Payload.ResponseBody.Links {
-			// Skip empty URLs
-			if link.URL == "" {
-				continue
-			}
-
-			// Resolve the server IP for the resource
-			host := extractHostFromURL(link.URL)
-			ips, err := net.LookupIP(host)
-			if err != nil || len(ips) == 0 {
-				continue
-			}
-
-			// Use the first IP address
-			ip := ips[0].String()
-
-			// Determine the CDN
-			cdn := getCDNForIP(ip)
-
-			// Get content type from WAT metadata or by making a HEAD request
-			contentType := getContentTypeFromWAT(&wat, link.URL)
-
-			// Create the resource info
-			resource := ResourceInfo{
-				CDN:            cdn,
-				OriginalDomain: domain,
-				ContentType:    contentType,
-				ResourceURL:    link.URL,
-				ServerIP:       ip,
-			}
-
-			resources = append(resources, resource)
-		}
-	}
-
-	// Check for scanner errors
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error scanning WAT file: %v", err)
-	}
-
-	return resources, nil
-}
-
-// extractHostFromURL extracts the host part from a URL
-func extractHostFromURL(urlStr string) string {
-	// Simple implementation, in a real app you'd use url.Parse
-	if strings.HasPrefix(urlStr, "http://") {
-		urlStr = strings.TrimPrefix(urlStr, "http://")
-	} else if strings.HasPrefix(urlStr, "https://") {
-		urlStr = strings.TrimPrefix(urlStr, "https://")
-	}
-
-	// Remove path part
-	if idx := strings.Index(urlStr, "/"); idx != -1 {
-		urlStr = urlStr[:idx]
-	}
-
-	return urlStr
-}
-
-// guessContentTypeFromURL makes a simple guess of content type based on URL extension
-func guessContentTypeFromURL(urlStr string) string {
-	if strings.HasSuffix(urlStr, ".js") {
-		return "text/javascript"
-	} else if strings.HasSuffix(urlStr, ".css") {
-		return "text/css"
-	} else if strings.HasSuffix(urlStr, ".jpg") || strings.HasSuffix(urlStr, ".jpeg") {
-		return "image/jpeg"
-	} else if strings.HasSuffix(urlStr, ".png") {
-		return "image/png"
-	} else if strings.HasSuffix(urlStr, ".gif") {
-		return "image/gif"
-	} else if strings.HasSuffix(urlStr, ".html") || strings.HasSuffix(urlStr, ".htm") {
-		return "text/html"
-	}
-
-	return "application/octet-stream"
-}
-
-// processDomain processes a single domain
-func processDomain(domain string) ([]ResourceInfo, error) {
-	fmt.Printf("Processing domain: %s\n", domain)
-
-	// Get the latest Common Crawl index for the domain
-	index, err := getLatestCommonCrawlIndex(domain)
-	if err != nil {
-		return nil, fmt.Errorf("error getting Common Crawl index: %v", err)
-	}
-
-	// Get resources from the WAT file
-	resources, err := getResourcesFromWAT(index, domain)
-	if err != nil {
-		return nil, fmt.Errorf("error getting resources from WAT: %v", err)
-	}
-
-	return resources, nil
+	return "unknown", noCDN
 }
 
 // loadCDNIPMap loads the CDN to IP mapping from the JSON file
@@ -415,87 +141,250 @@ func loadCDNIPMap(filePath string) error {
 		return fmt.Errorf("error parsing CDN IP map: %v", err)
 	}
 
-	fmt.Printf("Loaded CDN IP map with %d CDNs\n", len(cdnIPMap))
+	log.Info().Msgf("Loaded CDN IP map with %d CDNs", len(cdnIPMap))
 	return nil
+}
+
+// processDomain processes a single domain
+func processDomain(domain string) (CSVDump, error) {
+	// Perform DNS lookup with retry using different public DNS servers
+	ips, err := lookupIPWithRetry(domain)
+	if err != nil {
+		return CSVDump{}, fmt.Errorf("DNS lookup failed for %s after trying all DNS servers: %v", domain, err)
+	}
+
+	if len(ips) == 0 {
+		return CSVDump{}, fmt.Errorf("no IP addresses found for %s", domain)
+	}
+
+	// Use the first IP address
+	ip := ips[0].String()
+	// Determine if a CDN is associated with the IP
+	cdn, err := getCDNForIP(ip)
+	if err != nil {
+		return CSVDump{}, err
+	}
+
+	// Create and return the CSVDump structure
+	resources := CSVDump{
+		CDN:       cdn,
+		DomainSLD: domain,
+		IP:        ip,
+	}
+	log.Info().Any("result", resources).Msgf("resolved cdn")
+	return resources, nil
 }
 
 func main() {
 	// Define command-line flags
 	inputFile := flag.String("input", "top-1m.csv", "Path to the input domain list file")
 	cdnMapFile := flag.String("cdn-map", "cdn_asn_to_ip_map.json", "Path to the CDN to IP mapping file")
-	outputFile := flag.String("output", "resources.json", "Path to the output JSON file")
+	outputFile := flag.String("output", "domains_to_csn.csv", "Path to the output CSV file")
 
 	// Parse flags
 	flag.Parse()
 
+	// Set up zerolog
+	timestamp := time.Now().Format("2006-01-02_15-04-05")
+	logFilePath := fmt.Sprintf("scape_%s.log", timestamp)
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		fmt.Printf("Error creating log file: %v\n", err)
+		os.Exit(1)
+	}
+	defer logFile.Close()
+	// Configure zerolog to write to both stdout and the log file
+	consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
+	multi := zerolog.MultiLevelWriter(consoleWriter, logFile)
+
+	// Set global logger
+	log.Logger = zerolog.New(multi).With().Timestamp().Logger()
+
+	// Set log level to debug
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+
 	// Validate flags
 	if *inputFile == "" || *cdnMapFile == "" || *outputFile == "" {
 		flag.Usage()
-		log.Fatal("All file paths are required")
+		log.Fatal().Msg("All file paths are required")
 	}
 
 	// Load the CDN to IP mapping
 	if err := loadCDNIPMap(*cdnMapFile); err != nil {
-		log.Fatalf("Error loading CDN IP map: %v", err)
+		log.Fatal().Msgf("Error loading CDN IP map: %v", err)
 	}
 
 	// Open the domain list file
 	file, err := os.Open(*inputFile)
 	if err != nil {
-		log.Fatalf("Error opening input file: %v", err)
+		log.Fatal().Msgf("Error opening input file: %v", err)
 	}
 	defer file.Close()
+
+	// Count total number of domains for progress tracking
+	totalDomains := 0
+	countScanner := bufio.NewScanner(file)
+	for countScanner.Scan() {
+		totalDomains++
+	}
+	log.Info().Msgf("Total domains to process: %d", totalDomains)
+
+	// Reset file pointer to beginning
+	file.Seek(0, 0)
 
 	// Create a scanner to read the file line by line
 	scanner := bufio.NewScanner(file)
 
 	// Collect all resources
-	var allResources []ResourceInfo
+	var allResources []CSVDump
 
-	// Process each domain
-	for scanner.Scan() {
-		line := scanner.Text()
+	// Progress tracking variables
+	processedCount := 0
+	processingTimes := make([]time.Duration, 0, 10) // Store last 10 processing times
 
-		// Parse the domain from the CSV line (format: rank,domain)
-		parts := strings.Split(line, ",")
-		if len(parts) < 2 {
-			log.Printf("Invalid line format: %s", line)
-			continue
+	// Create channels for job distribution and result collection
+	type Job struct {
+		domain string
+		line   string
+	}
+	type Result struct {
+		resources CSVDump
+		err       error
+		domain    string
+		duration  time.Duration
+	}
+
+	jobs := make(chan Job, threadCount)
+	results := make(chan Result, threadCount)
+
+	// Use WaitGroup to track when all workers are done
+	var wg sync.WaitGroup
+
+	// Start worker pool
+	for w := 1; w <= threadCount; w++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for job := range jobs {
+				startTime := time.Now()
+				resources, err := processDomain(job.domain)
+				duration := time.Since(startTime)
+
+				results <- Result{
+					resources: resources,
+					err:       err,
+					domain:    job.domain,
+					duration:  duration,
+				}
+			}
+		}(w)
+	}
+
+	// Count of valid domains sent for processing
+	validDomainsCount := 0
+
+	// Start a goroutine to send jobs to the workers
+	go func() {
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			// Parse the domain from the CSV line (format: rank,domain)
+			parts := strings.Split(line, ",")
+			if len(parts) < 2 {
+				log.Warn().Msgf("Invalid line format: %s", line)
+				continue
+			}
+
+			domain := parts[1]
+			jobs <- Job{domain: domain, line: line}
+			validDomainsCount++
 		}
+		close(jobs) // Close the jobs channel when all domains have been sent
+	}()
 
-		domain := parts[1]
+	// Start a goroutine to close results channel when all workers are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
 
-		// Process the domain
-		resources, err := processDomain(domain)
-		if err != nil {
-			log.Printf("Error processing domain %s: %v", domain, err)
+	// Process results as they come in
+	for result := range results {
+		if result.err != nil {
+			if errors.Is(result.err, noCDN) {
+				log.Warn().Err(result.err).Str("domain", result.domain).Msg("no cdn")
+			} else {
+				log.Error().Err(result.err).Str("domain", result.domain).Msg("Error processing domain")
+			}
 			continue
 		}
 
 		// Add the resources to the collection
-		allResources = append(allResources, resources...)
+		allResources = append(allResources, result.resources)
 
-		// Limit the number of domains processed (for testing)
-		if len(allResources) > 100 {
-			break
+		// Update progress tracking
+		processedCount++
+
+		// Keep only the last 10 processing times
+		if len(processingTimes) >= 10 {
+			processingTimes = processingTimes[1:]
+		}
+		processingTimes = append(processingTimes, result.duration)
+
+		// Log progress every 10 domains
+		if processedCount%10 == 0 {
+			remaining := validDomainsCount - processedCount
+			if remaining < 0 {
+				remaining = 0
+			}
+			percentComplete := float64(processedCount) / float64(validDomainsCount) * 100
+			if validDomainsCount == 0 {
+				percentComplete = 0
+			}
+
+			// Calculate ETA based on the average of the last 10 processing times
+			var avgProcessingTime time.Duration
+			if len(processingTimes) > 0 {
+				totalTime := time.Duration(0)
+				for _, t := range processingTimes {
+					totalTime += t
+				}
+				avgProcessingTime = totalTime / time.Duration(len(processingTimes))
+				eta := avgProcessingTime * time.Duration(remaining)
+
+				log.Info().Msgf("Progress: %d/%d domains processed (%.2f%%) - %d remaining - ETA: %s",
+					processedCount, validDomainsCount, percentComplete, remaining, eta.Round(time.Second))
+			} else {
+				log.Info().Msgf("Progress: %d/%d domains processed (%.2f%%) - %d remaining",
+					processedCount, validDomainsCount, percentComplete, remaining)
+			}
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		log.Fatalf("Error reading input file: %v", err)
-	}
+	log.Info().Msgf("Processing complete! Dumping data to CSV...")
 
-	// Convert the resources to JSON
-	jsonData, err := json.MarshalIndent(allResources, "", "  ")
+	// Create output CSV file
+	outFile, err := os.Create(*outputFile)
 	if err != nil {
-		log.Fatalf("Error converting to JSON: %v", err)
+		log.Fatal().Msgf("Error creating output file: %v", err)
+	}
+	defer outFile.Close()
+
+	// Create CSV writer
+	writer := csv.NewWriter(outFile)
+	defer writer.Flush()
+
+	// Write header
+	if err := writer.Write([]string{"cdn", "domain_sld", "ip_addr"}); err != nil {
+		log.Fatal().Msgf("Error writing CSV header: %v", err)
 	}
 
-	// Write the JSON to the output file
-	if err := ioutil.WriteFile(*outputFile, jsonData, 0644); err != nil {
-		log.Fatalf("Error writing to output file: %v", err)
+	// Write all resources
+	for _, resource := range allResources {
+		if err := writer.Write([]string{resource.CDN, resource.DomainSLD, resource.IP}); err != nil {
+			log.Error().Msgf("Error writing record to CSV: %v", err)
+			continue
+		}
 	}
-
-	fmt.Printf("Successfully processed %d domains and wrote %d resources to %s\n",
-		len(allResources), len(allResources), *outputFile)
+	log.Info().Msgf("Finished")
 }

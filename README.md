@@ -37,40 +37,9 @@ of websites to visit.
 
 ## 4. Scrape domains and analyze CDN usage
 
-The `scape` tool processes a list of domains, uses Common Crawl to fetch information about each domain's resources, and generates a JSON report with CDN information.
+The `scape` tool processes a list of domains, uses DNS data and the IP mapping JSON file to determine which CDN the domain is connected too
 
-```shell
-go run cmd/scape/main.go -input top-1m.csv -cdn-map cdn_asn_to_ip_map.json -output resources.json
-```
 
-### Command-line options:
-
-- `-input`: Path to the input domain list file (default: "top-1m.csv")
-- `-cdn-map`: Path to the CDN to IP mapping file (default: "cdn_asn_to_ip_map.json")
-- `-output`: Path to the output JSON file (default: "resources.json")
-
-### Output format:
-
-The tool generates a JSON file containing an array of resource information objects:
-
-```json
-[
-  {
-    "cdn": "cloudfront",
-    "original_domain": "example.com",
-    "content_type": "text/javascript;charset=utf-8",
-    "resource_url": "https://example.com/script.js",
-    "server_ip": "192.0.2.1"
-  },
-  {
-    "cdn": "akamai",
-    "original_domain": "another-example.com",
-    "content_type": "text/css",
-    "resource_url": "https://another-example.com/styles.css",
-    "server_ip": "192.0.2.2"
-  }
-]
-```
 
 ### Notes
 
