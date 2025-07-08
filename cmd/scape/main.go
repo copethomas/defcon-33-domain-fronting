@@ -42,15 +42,42 @@ var threadCount = 50 // Number of concurrent goroutines to use for processing do
 
 var noCDN = errors.New("no cdn found for this IP")
 
-// List of public DNS servers
+// List of public DNS servers from around the world
 var publicDNSServers = []string{
-	"8.8.8.8:53",        // Google DNS
-	"1.1.1.1:53",        // Cloudflare
-	"9.9.9.9:53",        // Quad9
-	"208.67.222.222:53", // OpenDNS
-	"64.6.64.6:53",      // Verisign
-	"84.200.69.80:53",   // DNS.WATCH
-	"8.26.56.26:53",     // Comodo Secure DNS
+	// North America
+	"8.8.8.8:53",        // Google DNS (USA)
+	"1.1.1.1:53",        // Cloudflare (USA)
+	"9.9.9.9:53",        // Quad9 (USA)
+	"208.67.222.222:53", // OpenDNS (USA)
+	"64.6.64.6:53",      // Verisign (USA)
+	"8.26.56.26:53",     // Comodo Secure DNS (USA)
+
+	// Europe
+	"84.200.69.80:53", // DNS.WATCH (Germany)
+	"77.88.8.8:53",    // Yandex DNS (Russia)
+	"80.80.80.80:53",  // Freenom World (Netherlands)
+	"195.46.39.39:53", // SafeDNS (UK)
+
+	// Asia
+	"119.29.29.29:53",    // DNSPod (China)
+	"114.114.114.114:53", // 114DNS (China)
+	"223.5.5.5:53",       // AliDNS (China)
+	"180.76.76.76:53",    // Baidu DNS (China)
+	"101.226.4.6:53",     // DNSPai (China)
+	"1.2.4.8:53",         // CNNIC SDNS (China)
+	"168.95.1.1:53",      // Chunghwa Telecom (Taiwan)
+	"202.181.224.2:53",   // PCCW (Hong Kong)
+	"101.101.101.101:53", // Korea Telecom (South Korea)
+
+	// Australia/Oceania
+	"203.50.2.71:53", // Telstra (Australia)
+
+	// Africa
+	"196.213.41.10:53", // Internet Solutions (South Africa)
+
+	// South America
+	"200.56.224.11:53", // Ultranet (Mexico)
+	"200.85.37.254:53", // Telecom Argentina (Argentina)
 }
 
 // init initializes the random number generator
@@ -235,12 +262,25 @@ func main() {
 	// Create a scanner to read the file line by line
 	scanner := bufio.NewScanner(file)
 
-	// Collect all resources
-	var allResources []CSVDump
-
 	// Progress tracking variables
 	processedCount := 0
 	processingTimes := make([]time.Duration, 0, 10) // Store last 10 processing times
+
+	// Create output CSV file
+	outFile, err := os.Create(*outputFile)
+	if err != nil {
+		log.Fatal().Msgf("Error creating output file: %v", err)
+	}
+	defer outFile.Close()
+
+	// Create CSV writer
+	writer := csv.NewWriter(outFile)
+	defer writer.Flush()
+
+	// Write header
+	if err := writer.Write([]string{"cdn", "domain_sld", "ip_addr"}); err != nil {
+		log.Fatal().Msgf("Error writing CSV header: %v", err)
+	}
 
 	// Create channels for job distribution and result collection
 	type Job struct {
@@ -315,16 +355,16 @@ func main() {
 			continue
 		}
 
-		// Add the resources to the collection
-		allResources = append(allResources, result.resources)
+		// Write the result to the CSV file immediately
+		if err := writer.Write([]string{result.resources.CDN, result.resources.DomainSLD, result.resources.IP}); err != nil {
+			log.Error().Msgf("Error writing record to CSV: %v", err)
+		}
+		writer.Flush() // Flush after each write to ensure data is written immediately
 
 		// Update progress tracking
 		processedCount++
 
-		// Keep only the last 10 processing times
-		if len(processingTimes) >= 10 {
-			processingTimes = processingTimes[1:]
-		}
+		// Track all processing times for a continuously updating ETA
 		processingTimes = append(processingTimes, result.duration)
 
 		// Log progress every 10 domains
@@ -335,7 +375,7 @@ func main() {
 			}
 			percentComplete := float64(processedCount) / float64(totalDomains) * 100
 
-			// Calculate ETA based on the average of the last 10 processing times
+			// Calculate ETA based on the average of all processing times so far
 			var avgProcessingTime time.Duration
 			if len(processingTimes) > 0 {
 				totalTime := time.Duration(0)
@@ -354,30 +394,6 @@ func main() {
 		}
 	}
 
-	log.Info().Msgf("Processing complete! Dumping data to CSV...")
-
-	// Create output CSV file
-	outFile, err := os.Create(*outputFile)
-	if err != nil {
-		log.Fatal().Msgf("Error creating output file: %v", err)
-	}
-	defer outFile.Close()
-
-	// Create CSV writer
-	writer := csv.NewWriter(outFile)
-	defer writer.Flush()
-
-	// Write header
-	if err := writer.Write([]string{"cdn", "domain_sld", "ip_addr"}); err != nil {
-		log.Fatal().Msgf("Error writing CSV header: %v", err)
-	}
-
-	// Write all resources
-	for _, resource := range allResources {
-		if err := writer.Write([]string{resource.CDN, resource.DomainSLD, resource.IP}); err != nil {
-			log.Error().Msgf("Error writing record to CSV: %v", err)
-			continue
-		}
-	}
+	log.Info().Msgf("Processing complete! CSV data has been written to %s", *outputFile)
 	log.Info().Msgf("Finished")
 }
