@@ -38,7 +38,7 @@ type CSVDump struct {
 
 // Global variables
 var cdnIPMap CDNIPMap
-var threadCount = 10 // Number of concurrent goroutines to use for processing domains
+var threadCount = 50 // Number of concurrent goroutines to use for processing domains
 
 var noCDN = errors.New("no cdn found for this IP")
 
@@ -78,13 +78,13 @@ func lookupIPWithRetry(domain string) ([]net.IP, error) {
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 				d := net.Dialer{
-					Timeout: time.Second * 5,
+					Timeout: time.Second * 2,
 				}
 				return d.DialContext(ctx, "udp", server)
 			},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 		defer cancel()
 
 		ips, err := r.LookupIP(ctx, "ip", domain)
@@ -280,9 +280,6 @@ func main() {
 		}(w)
 	}
 
-	// Count of valid domains sent for processing
-	validDomainsCount := 0
-
 	// Start a goroutine to send jobs to the workers
 	go func() {
 		for scanner.Scan() {
@@ -297,7 +294,6 @@ func main() {
 
 			domain := parts[1]
 			jobs <- Job{domain: domain, line: line}
-			validDomainsCount++
 		}
 		close(jobs) // Close the jobs channel when all domains have been sent
 	}()
@@ -333,14 +329,11 @@ func main() {
 
 		// Log progress every 10 domains
 		if processedCount%10 == 0 {
-			remaining := validDomainsCount - processedCount
+			remaining := totalDomains - processedCount
 			if remaining < 0 {
 				remaining = 0
 			}
-			percentComplete := float64(processedCount) / float64(validDomainsCount) * 100
-			if validDomainsCount == 0 {
-				percentComplete = 0
-			}
+			percentComplete := float64(processedCount) / float64(totalDomains) * 100
 
 			// Calculate ETA based on the average of the last 10 processing times
 			var avgProcessingTime time.Duration
@@ -353,10 +346,10 @@ func main() {
 				eta := avgProcessingTime * time.Duration(remaining)
 
 				log.Info().Msgf("Progress: %d/%d domains processed (%.2f%%) - %d remaining - ETA: %s",
-					processedCount, validDomainsCount, percentComplete, remaining, eta.Round(time.Second))
+					processedCount, totalDomains, percentComplete, remaining, eta.Round(time.Second))
 			} else {
 				log.Info().Msgf("Progress: %d/%d domains processed (%.2f%%) - %d remaining",
-					processedCount, validDomainsCount, percentComplete, remaining)
+					processedCount, totalDomains, percentComplete, remaining)
 			}
 		}
 	}

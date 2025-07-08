@@ -39,7 +39,9 @@ of websites to visit.
 
 The `scape` tool processes a list of domains, uses DNS data and the IP mapping JSON file to determine which CDN the domain is connected too
 
+### Disadvantages
 
+DNS based looksups, you get different responses depending on where you query and how. On the command line I was getting samsum servers and in the browser I was getting Achamie
 
 ### Notes
 
