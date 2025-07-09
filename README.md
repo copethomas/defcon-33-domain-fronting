@@ -41,8 +41,10 @@ We now need a large number of sites to test which CDN they are associated with:
 The `scape` tool processes a list of domains, uses DNS data and the IP mapping JSON file to determine which CDN the domain is connected too and then logs the data in CSV format.
 
 ```shell
-go run cmd/scrape/main.go
+go run cmd/resolve/main.go
 ```
+
+![resolve example](assets/img/resolve_progress.png "Resolve example")
 
 ## 5. Feed data into Karthika Subramani DomainFrontingDiscovery tooling
 
