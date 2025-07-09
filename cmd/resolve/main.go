@@ -352,6 +352,8 @@ func main() {
 			} else {
 				log.Error().Err(result.err).Str("domain", result.domain).Msg("Error processing domain")
 			}
+			// Update progress tracking no matter the result
+			processedCount++
 			continue
 		}
 
@@ -360,9 +362,6 @@ func main() {
 			log.Error().Msgf("Error writing record to CSV: %v", err)
 		}
 		writer.Flush() // Flush after each write to ensure data is written immediately
-
-		// Update progress tracking
-		processedCount++
 
 		// Track all processing times for a continuously updating ETA
 		processingTimes = append(processingTimes, result.duration)
