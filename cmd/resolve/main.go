@@ -206,7 +206,7 @@ func main() {
 	// Define command-line flags
 	inputFile := flag.String("input", "top-1m.csv", "Path to the input domain list file")
 	cdnMapFile := flag.String("cdn-map", "cdn_asn_to_ip_map.json", "Path to the CDN to IP mapping file")
-	outputFile := flag.String("output", "domains_to_csn.csv", "Path to the output CSV file")
+	outputFile := flag.String("output", "domains_to_cdn.csv", "Path to the output CSV file")
 
 	// Parse flags
 	flag.Parse()
