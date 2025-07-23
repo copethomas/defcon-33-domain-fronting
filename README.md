@@ -56,7 +56,7 @@ One million is a quite large number of domains so we can run a simple script to 
 to save time on web scraping.
 
 ```bash
-./domain_cdn_sub_selection/domain_cdn_sub_selection.sh
+./domain_cdn_sub_selection/domain_cdn_sub_selection.sh 2>&1 | tee -a domain_cdn_sub_selection/domain_cdn_sub_selection.log
 ```
 
 <details>

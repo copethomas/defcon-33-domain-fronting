@@ -1,4 +1,4 @@
-onsen.io
-keycdn.com
-extmanagers.com
-kxcdn.com
+KeyCDN,extmanagers.com,185.172.149.104
+KeyCDN,onsen.io,185.172.148.128
+KeyCDN,keycdn.com,185.172.149.96
+KeyCDN,kxcdn.com,185.172.148.132
