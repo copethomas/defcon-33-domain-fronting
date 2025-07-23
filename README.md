@@ -109,10 +109,48 @@ Done! :D
 ```
 </details>
 
+(Optional)
+
+Combine all the subsections into a new macro-selection
+
+```bash
+echo "cdn,domain_sld,ip_addr" > domains_to_cdn_macro_selection.csv && cat domain_cdn_sub_selection/*.txt >> domains_to_cdn_macro_selection.csv
+```
 
 ## 5. Feed data into Karthika Subramani DomainFrontingDiscovery tooling
 
-TODO
+Clone Patched tooling 
+
+```bash
+git clone git@github.com:copethomas/DomainFrontingDiscovery.git
+```
+
+Update inputs and outputs in the config file:
+
+
+```
+vi src/config.ini
+
+[FILE_PATHS]
+crawling_results_path = <repo_location>/data/crawler_results
+cdn_domain_mapping_file_path = <defcon-2025-domain-fronting_repo_location>/domains_to_cdn_macro_selection.csv (or the full seletion)
+```
+
+Create python env and install packages:
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+Change working dir:
+```bash
+cd src/crawler_module
+```
+
+Run the Crawler:
+```bash
+../../.venv/bin/python3 crawl_urls.py | tee -a crawler_module.log
+```
 
 ### Disadvantages
 
