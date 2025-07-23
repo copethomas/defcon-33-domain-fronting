@@ -2,7 +2,7 @@
 
 set -euf -o pipefail
 
-DOMAINCOUNT=30
+DOMAINCOUNT=100
 CDNLIST="cdn_asn.csv"
 DOMAINLIST="domains_to_cdn.csv"
 

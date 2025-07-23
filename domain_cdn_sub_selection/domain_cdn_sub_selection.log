@@ -1,43 +1,43 @@
-Processing CDNs in 'cdn_asn.csv' and extracting a max of '30' domains from 'domains_to_cdn.csv' ... 
-Processed 30 domains for Akamai into Akamai_domain_selection.txt
-Processed 30 domains for Alibaba_Cloud into Alibaba_Cloud_domain_selection.txt
-Processed 30 domains for Amazon_CloudFront into Amazon_CloudFront_domain_selection.txt
+Processing CDNs in 'cdn_asn.csv' and extracting a max of '100' domains from 'domains_to_cdn.csv' ... 
+Processed 100 domains for Akamai into Akamai_domain_selection.txt
+Processed 100 domains for Alibaba_Cloud into Alibaba_Cloud_domain_selection.txt
+Processed 100 domains for Amazon_CloudFront into Amazon_CloudFront_domain_selection.txt
 warning: no domains found for 'Aryaka'
-Processed 30 domains for Baidu into Baidu_domain_selection.txt
+Processed 100 domains for Baidu into Baidu_domain_selection.txt
 Processed 18 domains for BelugaCDN into BelugaCDN_domain_selection.txt
-Processed 30 domains for BlazingCDN into BlazingCDN_domain_selection.txt
-Processed 30 domains for Bunny.net into Bunny.net_domain_selection.txt
+Processed 100 domains for BlazingCDN into BlazingCDN_domain_selection.txt
+Processed 37 domains for Bunny.net into Bunny.net_domain_selection.txt
 Processed 16 domains for BytePlus into BytePlus_domain_selection.txt
 Processed 9 domains for CacheFly into CacheFly_domain_selection.txt
-Processed 30 domains for CDN77 into CDN77_domain_selection.txt
+Processed 100 domains for CDN77 into CDN77_domain_selection.txt
 Processed 15 domains for CDNetworks into CDNetworks_domain_selection.txt
-Processed 30 domains for Cloudflare into Cloudflare_domain_selection.txt
-Processed 30 domains for Comcast_Technology_Solutions into Comcast_Technology_Solutions_domain_selection.txt
+Processed 100 domains for Cloudflare into Cloudflare_domain_selection.txt
+Processed 100 domains for Comcast_Technology_Solutions into Comcast_Technology_Solutions_domain_selection.txt
 warning: no domains found for 'Edgio'
-Processed 30 domains for EdgeNext into EdgeNext_domain_selection.txt
-Processed 30 domains for Fastly into Fastly_domain_selection.txt
+Processed 41 domains for EdgeNext into EdgeNext_domain_selection.txt
+Processed 100 domains for Fastly into Fastly_domain_selection.txt
 warning: no domains found for 'Cedexis'
 warning: no domains found for 'Datum'
-Processed 30 domains for G-Core_Labs into G-Core_Labs_domain_selection.txt
-Processed 30 domains for GlobalConnect into GlobalConnect_domain_selection.txt
-Processed 30 domains for Google_Cloud_CDN into Google_Cloud_CDN_domain_selection.txt
-Processed 30 domains for Huawei_Cloud into Huawei_Cloud_domain_selection.txt
-Processed 30 domains for Imperva_CDN into Imperva_CDN_domain_selection.txt
+Processed 87 domains for G-Core_Labs into G-Core_Labs_domain_selection.txt
+Processed 100 domains for GlobalConnect into GlobalConnect_domain_selection.txt
+Processed 100 domains for Google_Cloud_CDN into Google_Cloud_CDN_domain_selection.txt
+Processed 100 domains for Huawei_Cloud into Huawei_Cloud_domain_selection.txt
+Processed 100 domains for Imperva_CDN into Imperva_CDN_domain_selection.txt
 Processed 23 domains for adobe into adobe_domain_selection.txt
 Processed 10 domains for cdnvideo into cdnvideo_domain_selection.txt
 Processed 4 domains for KeyCDN into KeyCDN_domain_selection.txt
-Processed 30 domains for Lumen into Lumen_domain_selection.txt
+Processed 100 domains for Lumen into Lumen_domain_selection.txt
 Processed 1 domains for MainStreaming into MainStreaming_domain_selection.txt
 Processed 10 domains for Medianova into Medianova_domain_selection.txt
-Processed 30 domains for Microsoft_Azure_CDN into Microsoft_Azure_CDN_domain_selection.txt
+Processed 100 domains for Microsoft_Azure_CDN into Microsoft_Azure_CDN_domain_selection.txt
 warning: no domains found for 'Netskrt'
-Processed 30 domains for Ngenix into Ngenix_domain_selection.txt
+Processed 100 domains for Ngenix into Ngenix_domain_selection.txt
 warning: no domains found for 'Qwilt'
-Processed 30 domains for GoDaddy into GoDaddy_domain_selection.txt
-Processed 30 domains for Tata_Communications into Tata_Communications_domain_selection.txt
-Processed 30 domains for Tencent into Tencent_domain_selection.txt
+Processed 100 domains for GoDaddy into GoDaddy_domain_selection.txt
+Processed 100 domains for Tata_Communications into Tata_Communications_domain_selection.txt
+Processed 100 domains for Tencent into Tencent_domain_selection.txt
 warning: no domains found for 'Velocix'
-Processed 30 domains for Wangsu into Wangsu_domain_selection.txt
-Processed 30 domains for wixdns into wixdns_domain_selection.txt
+Processed 100 domains for Wangsu into Wangsu_domain_selection.txt
+Processed 100 domains for wixdns into wixdns_domain_selection.txt
 warning: no domains found for 'Yottaa'
 Done! :D

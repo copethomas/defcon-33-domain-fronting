@@ -1,9 +1,9 @@
-CacheFly,edgeuno.com,204.93.150.154
 CacheFly,instantcdn.net,205.234.175.175
-CacheFly,porngifs.com,205.234.175.175
-CacheFly,torix.ca,205.234.175.175
 CacheFly,ps0z.com,205.234.175.175
 CacheFly,memes.com,205.234.175.105
-CacheFly,cachefly.com,205.234.175.175
+CacheFly,porngifs.com,205.234.175.175
+CacheFly,torix.ca,205.234.175.175
+CacheFly,edgeuno.com,204.93.150.154
 CacheFly,jspm.io,205.234.175.175
+CacheFly,cachefly.com,205.234.175.175
 CacheFly,a1tb.com,205.234.175.175
