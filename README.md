@@ -6,7 +6,7 @@ Building on the great work of [Karthika Subramani](https://karthikas03.github.io
 - Paper ~ [Discovering and Measuring CDNs Prone to Domain Fronting (2024)](https://doi.org/10.1145/3589334.3645656)
 - Git repo https://github.com/karthikaS03/DomainFrontingDiscovery
 
-Within this repo I improve on the orignal CDN detection methods by using only open source datasets
+Within this repo I improve on the original CDN detection methods by using only open source datasets
 and using an ASN -> IP -> CDN lookup system based on DNS resolution.
 
 ## 1. CDN List (Manual Process)
@@ -23,9 +23,10 @@ Data Collection Date: 2025-07-06
 
 ## 2. ASN to IP Map
 
-We then use the `cdn-asn-ip-map` Go program to covert all the CDN ASN numbers to a collection of IP addresses
-which we dump as JSON to be used in a lookup table. 
-This uses the free https://iptoasn.com tab separated database to perform the lookup.
+We then use the `cdn-asn-ip-map` Go program to covert all the CDN ASN numbers to a collection of IP ranges
+which we dump to the `cdn_asn_to_ip_map.json` file. 
+This file is used in later programs as a lookup table.
+(The free https://iptoasn.com tab separated database is used to perform the lookup)
 
 ```shell
 go run cmd/cdn-asn-ip-map/main.go
@@ -38,7 +39,8 @@ We now need a large number of sites to test which CDN they are associated with:
 
 ## 4. Scrape domains and analyze CDN usage
 
-The `scape` tool processes a list of domains, uses DNS data and the IP mapping JSON file to determine which CDN the domain is connected too and then logs the data in CSV format.
+The `resolve` tool processes the list of domains and then uses the returned DNS data to perform a CDN look up
+using the `cdn_asn_to_ip_map.json` mapping file. All of this data is then logged to `domains_to_cdn.csv`.
 
 ```shell
 go run cmd/resolve/main.go
