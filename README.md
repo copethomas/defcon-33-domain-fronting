@@ -152,6 +152,8 @@ Run the Crawler:
 ../../.venv/bin/python3 crawl_urls.py | tee -a crawler_module.log
 ```
 
+## 6. generate test cases + filter urls (TODO)
+
 ### Disadvantages
 
 DNS based looksups, you get different responses depending on where you query and how. On the command line I was getting samsung servers and in the browser I was getting akamai :(
