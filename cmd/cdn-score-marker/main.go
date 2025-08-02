@@ -178,6 +178,8 @@ func main() {
 			switch testData.TestResult {
 			case "Success":
 				cdnTestTypeCounts[cdnDomain.Cdn][DomainFrontSuccess]++
+				fmt.Printf("DomainFrontSuccess!!! = Matched test ID %s: front_domain=%s, domain_sld=%s, cdn=%s, test_type=%s, test_result=%s\n",
+					testData.TestID, testData.FrontDomain, host, cdnDomain.Cdn, testData.TestType, testData.TestResult)
 			case "Failed":
 				cdnTestTypeCounts[cdnDomain.Cdn][DomainFrontFailed]++
 			default:
