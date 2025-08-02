@@ -147,12 +147,16 @@ Change working dir:
 cd src/crawler_module
 ```
 
-Run the Crawler (this can take days to complete)
+Run the Crawler (note: this can take days to complete)
 ```bash
 ../../.venv/bin/python3 crawl_urls.py | tee -a crawler_module.log
 ```
 
-## 6. Generate test cases and validate Domain Fronting (this can take days to complete)
+## 6. Generate test cases and validate Domain Fronting 
+
+run the xxx
+
+(note: this can take days to complete)
 
 ```bash
 TODO
@@ -192,7 +196,7 @@ CDN: CacheFly, Count: 80
 
 - This test methodology is not 100% accurate and can produce some false results. I'd recommend manually verifying a subset.
 - Some domains are "grandfathered" by CDN companies, meaning they work with some configurations of Domain Fronting which do not work with newly registered domains.
-- DNS based looksups, you get different responses depending on where you are geograpicly querying from
+- DNS based looksups, you get different responses depending on where you are geograpicly querying from. Which is some cases can be a CDN and in others can not.
 
 ### Notes
 
