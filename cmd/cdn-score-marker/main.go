@@ -5,18 +5,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"strings"
 )
 
-const (
-	DomainFrontSuccess = "DomainFrontSuccess"
-	DomainFrontFailed  = "DomainFrontFailed"
-)
-
-// TestData represents the structure of each JSON object in the input file
+// TestData represents the JSON structure of each test object
 type TestData struct {
 	TestID          string   `json:"test_id"`
 	TestType        string   `json:"test_type"`
@@ -29,46 +23,28 @@ type TestData struct {
 	TestResult      string   `json:"test_result"`
 	HostIP          string   `json:"host_ip"`
 	FrontDomainIP   string   `json:"front_domain_ip"`
+	OriginalDigest  string   `json:"original_digest"`
+	FhfdDigest      *string  `json:"fhfd_digest"`
 }
 
-// CdnDomainData represents the structure of each row in the CSV file
-type CdnDomainData struct {
-	Cdn       string
-	DomainSld string
-	IpAddr    string
+// CDNData represents the CSV structure for CDN domain data
+type CDNData struct {
+	CDN       string
+	DomainSLD string
+	IPAddr    string
 }
 
 func main() {
 	// Define command-line flags
-	inputFile := flag.String("fronting_test_details", "", "Path to the input fronting_test_details JSON file (required)")
-	csvFile := flag.String("domains_csv", "", "Path to the CSV file with CDN domain data (required)")
-	resultsFile := flag.String("results", "", "Path to the output CSV file with results (required)")
+	inputFile := flag.String("fronting_success_cases", "", "Path to the input fronting_success_cases JSON file (required)")
+	csvFile := flag.String("domains_to_cdn", "", "Path to the domains_to_cdn file with CDN domain data (required)")
 	flag.Parse()
 
 	// Check if input file was provided
-	if *inputFile == "" {
-		fmt.Println("Error: Input file is required")
-		fmt.Println("Usage: cdn-score-marker -fronting_test_details <filename> -domains_csv <csvfilename> -results <outputfilename>")
-		os.Exit(1)
-	}
-
-	// Check if CSV file was provided
-	if *csvFile == "" {
-		fmt.Println("Error: CSV file is required")
-		fmt.Println("Usage: cdn-score-marker -fronting_test_details <filename> -domains_csv <csvfilename> -results <outputfilename>")
-		os.Exit(1)
-	}
-
-	// Check if results file was provided
-	if *resultsFile == "" {
-		fmt.Println("Error: Results file is required")
-		fmt.Println("Usage: cdn-score-marker -fronting_test_details <filename> -domains_csv <csvfilename> -results <outputfilename>")
-		os.Exit(1)
-	}
-
-	// Check if the input file exists
-	if _, err := os.Stat(*inputFile); os.IsNotExist(err) {
-		fmt.Printf("Error: File '%s' does not exist\n", *inputFile)
+	if *inputFile == "" || *csvFile == "" {
+		fmt.Println("Error: Both input JSON file and CSV file are required")
+		fmt.Println("Usage: cdn-score-marker -input <json_filename> -csv <csv_filename>")
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
@@ -78,8 +54,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Check if the file exists
+	if _, err := os.Stat(*inputFile); os.IsNotExist(err) {
+		fmt.Printf("Error: File '%s' does not exist\n", *inputFile)
+		os.Exit(1)
+	}
+
 	// Read the file
-	data, err := ioutil.ReadFile(*inputFile)
+	fileData, err := os.ReadFile(*inputFile)
 	if err != nil {
 		fmt.Printf("Error reading file: %v\n", err)
 		os.Exit(1)
@@ -87,7 +69,7 @@ func main() {
 
 	// Parse the JSON data
 	var testDataArray []TestData
-	err = json.Unmarshal(data, &testDataArray)
+	err = json.Unmarshal(fileData, &testDataArray)
 	if err != nil {
 		fmt.Printf("Error parsing JSON: %v\n", err)
 		os.Exit(1)
@@ -104,160 +86,94 @@ func main() {
 	// Create a new CSV reader
 	reader := csv.NewReader(csvData)
 
+	// Read the header line
+	_, err = reader.Read()
+	if err != nil {
+		fmt.Printf("Error reading CSV header: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Read all CSV records
+	var cdnDataArray []CDNData
 	records, err := reader.ReadAll()
 	if err != nil {
 		fmt.Printf("Error reading CSV data: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Parse CSV records into CdnDomainData structs
-	var cdnDomains []CdnDomainData
-	// Skip the header row (first row)
-	for i, record := range records {
-		if i == 0 {
-			// Skip header row
-			continue
-		}
+	// Parse CSV records into CDNData structs
+	for _, record := range records {
 		if len(record) == 3 {
-			cdnDomains = append(cdnDomains, CdnDomainData{
-				Cdn:       record[0],
-				DomainSld: record[1],
-				IpAddr:    record[2],
+			cdnDataArray = append(cdnDataArray, CDNData{
+				CDN:       record[0],
+				DomainSLD: record[1],
+				IPAddr:    record[2],
 			})
 		}
 	}
 
 	// Create a map for quick domain lookup
-	domainMap := make(map[string]CdnDomainData)
-	for _, domain := range cdnDomains {
-		domainMap[domain.DomainSld] = domain
+	domainToCDN := make(map[string]string)
+	for _, data := range cdnDataArray {
+		domainToCDN[data.DomainSLD] = data.CDN
 	}
 
-	// Create a map to count test types by CDN
-	cdnTestTypeCounts := make(map[string]map[string]int)
+	// Create a counter for test types by CDN
+	cdnTestTypeCounter := make(map[string]map[string]int)
 
 	// Process each test
-	fmt.Println("Processing tests:")
-	for _, testData := range testDataArray {
-		// Parse the front domain to extract the domain
-		frontDomain := testData.FrontDomain
+	fmt.Println("\nProcessing tests:")
+	for _, test := range testDataArray {
+		// Parse the front domain to get the host
+		frontDomain := test.FrontDomain
 
-		// Add scheme if missing to ensure proper URL parsing
-		if !strings.HasPrefix(frontDomain, "http://") && !strings.HasPrefix(frontDomain, "https://") {
-			frontDomain = "https://" + frontDomain
+		// If the domain starts with http:// or https://, parse it
+		var host string
+		if strings.HasPrefix(frontDomain, "http://") || strings.HasPrefix(frontDomain, "https://") {
+			parsedURL, err := url.Parse(frontDomain)
+			if err != nil {
+				fmt.Printf("Error parsing URL %s: %v\n", frontDomain, err)
+				continue
+			}
+			host = parsedURL.Host
+		} else {
+			host = frontDomain
 		}
-
-		frontDomainURL, err := url.Parse(frontDomain)
-		if err != nil {
-			panic(fmt.Sprintf("Error parsing URL %s: %v\n", testData.FrontDomain, err))
-		}
-
-		// Extract the domain from the URL
-		host := frontDomainURL.Host
 
 		// Remove port if present
 		if colonIndex := strings.Index(host, ":"); colonIndex != -1 {
 			host = host[:colonIndex]
 		}
 
-		// Check if the domain is in our list
-		cdnDomain, exists := domainMap[host]
-		if !exists {
-			panic(fmt.Sprintf("Error: Domain %s (from %s) not found in CDN domains list. Aborting.\n",
-				host, testData.FrontDomain))
-		}
-
-		// Update the counter for this test type and CDN
-		if _, exists := cdnTestTypeCounts[cdnDomain.Cdn]; !exists {
-			cdnTestTypeCounts[cdnDomain.Cdn] = make(map[string]int)
-		}
-		cdnTestTypeCounts[cdnDomain.Cdn][testData.TestType]++
-
-		if testData.TestType == "AHFD" { //This is the true "Domain Fronting" test case we care about
-			switch testData.TestResult {
-			case "Success":
-				cdnTestTypeCounts[cdnDomain.Cdn][DomainFrontSuccess]++
-				fmt.Printf("DomainFrontSuccess!!! = Matched test ID %s: front_domain=%s, domain_sld=%s, cdn=%s, test_type=%s, test_result=%s\n",
-					testData.TestID, testData.FrontDomain, host, cdnDomain.Cdn, testData.TestType, testData.TestResult)
-			case "Failed":
-				cdnTestTypeCounts[cdnDomain.Cdn][DomainFrontFailed]++
-			default:
-				panic(fmt.Sprintf("Error: Invalid test result %s for test ID %s\n", testData.TestResult, testData.TestID))
-			}
-		}
-
-		fmt.Printf("Matched test ID %s: front_domain=%s, domain_sld=%s, cdn=%s, test_type=%s\n",
-			testData.TestID, testData.FrontDomain, host, cdnDomain.Cdn, testData.TestType)
-	}
-
-	// Print the test type counts by CDN
-	fmt.Println("\nTest Type Counts by CDN:")
-	totalTests := 0
-	totalCdns := len(cdnTestTypeCounts)
-
-	for cdn, testTypes := range cdnTestTypeCounts {
-		cdnTotal := 0
-		fmt.Printf("CDN: %s\n", cdn)
-
-		for testType, count := range testTypes {
-			fmt.Printf("  %s: %d\n", testType, count)
-			cdnTotal += count
-		}
-
-		fmt.Printf("  Total for %s: %d\n\n", cdn, cdnTotal)
-		totalTests += cdnTotal
-	}
-
-	fmt.Printf("Summary:\n")
-	fmt.Printf("Total CDNs processed: %d\n", totalCdns)
-	fmt.Printf("Total tests processed: %d\n", totalTests)
-
-	// Write results to CSV file
-	file, err := os.Create(*resultsFile)
-	if err != nil {
-		fmt.Printf("Error creating results file: %v\n", err)
-		os.Exit(1)
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	// Write header
-	header := []string{"CDN", "DomainFrontSuccess", "DomainFrontFailed", "Total"}
-	if err := writer.Write(header); err != nil {
-		fmt.Printf("Error writing CSV header: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Write data for each CDN
-	for cdn, testTypes := range cdnTestTypeCounts {
-		successCount := testTypes[DomainFrontSuccess]
-		failedCount := testTypes[DomainFrontFailed]
-		total := successCount + failedCount
-
-		record := []string{
-			cdn,
-			fmt.Sprintf("%d", successCount),
-			fmt.Sprintf("%d", failedCount),
-			fmt.Sprintf("%d", total),
-		}
-
-		if err := writer.Write(record); err != nil {
-			fmt.Printf("Error writing CSV record: %v\n", err)
+		// Check if the domain is in our CDN list
+		cdn, found := domainToCDN[host]
+		if !found {
+			fmt.Printf("Error: Domain %s not found in CDN list. Aborting.\n", host)
 			os.Exit(1)
 		}
+
+		// Increment the counter for this test type and CDN
+		if _, exists := cdnTestTypeCounter[cdn]; !exists {
+			cdnTestTypeCounter[cdn] = make(map[string]int)
+		}
+		cdnTestTypeCounter[cdn][test.TestType]++
+
+		fmt.Printf("Test ID: %s, Front Domain: %s, CDN: %s, Test Type: %s\n",
+			test.TestID, host, cdn, test.TestType)
 	}
 
-	// Ensure the writer flushes all buffered data to the underlying writer
-	writer.Flush()
-
-	// Check for any errors during flush
-	if err := writer.Error(); err != nil {
-		fmt.Printf("Error flushing CSV data: %v\n", err)
-		os.Exit(1)
+	dfcdn := make(map[string]int)
+	for cdn, testTypes := range cdnTestTypeCounter {
+		for _, count := range testTypes {
+			if count > 10 {
+				dfcdn[cdn] = count
+			}
+		}
 	}
-
-	fmt.Printf("\nResults successfully saved to file: %s\n", *resultsFile)
+	fmt.Println("---")
+	fmt.Println("CDNs supporting domain fronting:")
+	fmt.Println("---")
+	for cdn, count := range dfcdn {
+		fmt.Printf("CDN: %s, Count: %d\n", cdn, count)
+	}
 }
