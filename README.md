@@ -154,6 +154,17 @@ Run the Crawler:
 
 ## 6. generate test cases + filter urls (TODO)
 
+
+## 7. Score CDNs and produce results
+
+```bash
+go run cmd/cdn-score-marker/main.go -domains_csv domains_to_cdn_macro_selection.csv -fronting_test_details fronting_test_details.json -results cdn_score.csv
+```
+
+### Final Results
+
+TODO - Insert image
+
 ### Disadvantages
 
 DNS based looksups, you get different responses depending on where you query and how. On the command line I was getting samsung servers and in the browser I was getting akamai :(
