@@ -117,7 +117,7 @@ Combine all the subsections into a new macro-selection
 echo "cdn,domain_sld,ip_addr" > domains_to_cdn_macro_selection.csv && cat domain_cdn_sub_selection/*.txt >> domains_to_cdn_macro_selection.csv
 ```
 
-## 5. Feed data into Karthika Subramani DomainFrontingDiscovery tooling
+## 5. Feed data into modified Karthika Subramani DomainFrontingDiscovery tooling
 
 Clone Patched tooling 
 
