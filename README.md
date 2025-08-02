@@ -147,13 +147,16 @@ Change working dir:
 cd src/crawler_module
 ```
 
-Run the Crawler:
+Run the Crawler (this can take days to complete)
 ```bash
 ../../.venv/bin/python3 crawl_urls.py | tee -a crawler_module.log
 ```
 
-## 6. generate test cases + filter urls (TODO)
+## 6. Generate test cases and validate Domain Fronting (this can take days to complete)
 
+```bash
+TODO
+```
 
 ## 7. Score CDNs and produce results
 
@@ -162,6 +165,15 @@ go run cmd/cdn-score-marker/main.go -fronting_success_cases fronting_success_cas
 
 <snip>
 
+TODO
+
+```
+
+### Final Results
+
+Last Updated: 2025-08-02
+
+```
 ---
 CDNs supporting domain fronting:
 ---
@@ -174,16 +186,13 @@ CDN: Imperva_CDN, Count: 656
 CDN: G-Core_Labs, Count: 145
 CDN: CDN77, Count: 1038
 CDN: CacheFly, Count: 80
-
 ```
 
-### Final Results
+### Closing Remarks
 
-TODO - Insert image
-
-### Disadvantages
-
-DNS based looksups, you get different responses depending on where you query and how. On the command line I was getting samsung servers and in the browser I was getting akamai :(
+- This test methodology is not 100% accurate and can produce some false results. I'd recommend manually verifying a subset.
+- Some domains are "grandfathered" by CDN companies, meaning they work with some configurations of Domain Fronting which do not work with newly registered domains.
+- DNS based looksups, you get different responses depending on where you are geograpicly querying from
 
 ### Notes
 
