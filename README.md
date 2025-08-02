@@ -1,6 +1,6 @@
-# defcon-2025-domain-fronting
+# defcon-33-domain-fronting
 
-Defcon 2025 Malware Village Domain Fronting Talk
+Defcon 33 (2025) Malware Village Domain Fronting Talk
 
 Building on the great work of [Karthika Subramani](https://karthikas03.github.io/):
 - Paper ~ [Discovering and Measuring CDNs Prone to Domain Fronting (2024)](https://doi.org/10.1145/3589334.3645656)
