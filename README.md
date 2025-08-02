@@ -158,7 +158,23 @@ Run the Crawler:
 ## 7. Score CDNs and produce results
 
 ```bash
-go run cmd/cdn-score-marker/main.go -domains_csv domains_to_cdn_macro_selection.csv -fronting_test_details fronting_test_details.json -results cdn_score.csv
+go run cmd/cdn-score-marker/main.go -fronting_success_cases fronting_success_cases.json -domains_to_cdn domains_to_cdn.csv
+
+<snip>
+
+---
+CDNs supporting domain fronting:
+---
+CDN: BelugaCDN, Count: 21
+CDN: Bunny.net, Count: 153
+CDN: Fastly, Count: 220
+CDN: Wangsu, Count: 92
+CDN: EdgeNext, Count: 237
+CDN: Imperva_CDN, Count: 656
+CDN: G-Core_Labs, Count: 145
+CDN: CDN77, Count: 1038
+CDN: CacheFly, Count: 80
+
 ```
 
 ### Final Results
