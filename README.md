@@ -1,6 +1,10 @@
 # defcon-33-domain-fronting
 
-Defcon 33 (2025) Malware Village Domain Fronting Talk
+Defcon 33 (2025) Malware Village Domain Fronting Talk by Tom Cope
+
+Slides: https://docs.google.com/presentation/d/1KRr4vV09sZf3SNt6_wlnEY7lyhNkWAqYuz1HWK76zO0/edit?usp=sharing
+
+---
 
 Building on the great work of [Karthika Subramani](https://karthikas03.github.io/):
 - Paper ~ [Discovering and Measuring CDNs Prone to Domain Fronting (2024)](https://doi.org/10.1145/3589334.3645656)
@@ -34,7 +38,7 @@ go run cmd/cdn-asn-ip-map/main.go
 
 ## 3. Prepare domain list
 
-We now need a large number of sites to test which CDN they are associated with:
+We now need a large number of sites to test which CDN they’re associated with:
 - https://tranco-list.eu/ - For the top 1 million domains
 
 ## 4. Scrape domains and analyze CDN usage
@@ -49,10 +53,9 @@ go run cmd/resolve/main.go
 ![resolve example](assets/img/resolve_progress.png "Resolve example")
 
 
-
 ## 5. (Optional) Split the domain list into a smaller CDN selection
 
-One million is a quite large number of domains so we can run a simple script to cut down the number we are going to test
+One million is a quite large number of domains so we can run a simple script to cut down the number we’re going to test
 to save time on web scraping.
 
 ```bash
@@ -127,7 +130,6 @@ git clone git@github.com:copethomas/DomainFrontingDiscovery.git
 
 Update inputs and outputs in the config file:
 
-
 ```
 vi src/config.ini
 
@@ -154,23 +156,38 @@ Run the Crawler (note: this can take days to complete)
 
 ## 6. Generate test cases and validate Domain Fronting 
 
-run the xxx
+Change working dir:
+```bash
+cd ../fronting_tester_module/
+```
 
-(note: this can take days to complete)
+Run the Fronting Tester (note: this can take days to complete)
 
 ```bash
-TODO
+../../.venv/bin/python3 FrontingTester.py batch 2>&1 | tee -a FrontingTester.py.log 
 ```
+
+![testing example](assets/img/testing_progress.png "Testing example")
 
 ## 7. Score CDNs and produce results
 
 ```bash
 go run cmd/cdn-score-marker/main.go -fronting_success_cases fronting_success_cases.json -domains_to_cdn domains_to_cdn.csv
 
+Processing tests:
+Test ID: KeyCDN_onsen.io_5, Front Domain: kxcdn.com, CDN: KeyCDN, Test Type: AHFD
+Test ID: KeyCDN_onsen.io_1, Front Domain: extmanagers.com, CDN: KeyCDN, Test Type: AHFD
+Test ID: KeyCDN_onsen.io_3, Front Domain: extmanagers.com, CDN: KeyCDN, Test Type: AHFD
+Test ID: KeyCDN_onsen.io_4, Front Domain: kxcdn.com, CDN: KeyCDN, Test Type: AHFD
+Test ID: KeyCDN_onsen.io_2, Front Domain: extmanagers.com, CDN: KeyCDN, Test Type: AHFD
+Test ID: KeyCDN_onsen.io_0, Front Domain: extmanagers.com, CDN: KeyCDN, Test Type: AHFD
+Test ID: KeyCDN_extmanagers.com_1, Front Domain: kxcdn.com, CDN: KeyCDN, Test Type: AHFD
+Test ID: KeyCDN_extmanagers.com_0, Front Domain: onsen.io, CDN: KeyCDN, Test Type: AHFD
+Test ID: KeyCDN_extmanagers.com_2, Front Domain: onsen.io, CDN: KeyCDN, Test Type: AHFD
+Test ID: CacheFly_jspm.io_0, Front Domain: a1tb.com, CDN: CacheFly, Test Type: AHFD
+Test ID: CacheFly_jspm.io_1, Front Domain: a1tb.com, CDN: CacheFly, Test Type: AHFD
+
 <snip>
-
-TODO
-
 ```
 
 ### Final Results
@@ -196,7 +213,7 @@ CDN: CacheFly, Count: 80
 
 - This test methodology is not 100% accurate and can produce some false results. I'd recommend manually verifying a subset.
 - Some domains are "grandfathered" by CDN companies, meaning they work with some configurations of Domain Fronting which do not work with newly registered domains.
-- DNS based looksups, you get different responses depending on where you are geograpicly querying from. Which is some cases can be a CDN and in others can not.
+- DNS based looksups, you get different responses depending on where you’re geographically querying from. Which is some cases can be a CDN and in others can be a company hosted server.
 
 ### Notes
 
